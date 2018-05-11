@@ -1,0 +1,154 @@
+# This is Fingolfin's rcfile, I play online on CXC (crawl.xtahua.com)
+
+default_manual_training = true
+rest_wait_both = true
+explore_auto_rest = false
+confirm_butcher = never
+autofight_caught = true
+equip_unequip = true
+
+
+auto_exclude += Sigmund
+auto_exclude += Grinder
+auto_exclude += Menkaure
+
+autopickup = $?!+"/%}|
+autopickup_exceptions ^= >staff of
+autopickup_exceptions ^= >immolation, >scroll of silence, >uselessness, >noise
+autopickup_exceptions ^= <lignification, <potion of mutation
+
+spell_slot ^= Repel Missiles:A
+spell_slot ^= Controlled Blink:C
+spell_slot ^= Blink:b
+spell_slot ^= Conjure Flame:c
+spell_slot ^= Mephitic Cloud:d
+spell_slot ^= Bolt of Magma:e
+spell_slot ^= Haste:H
+spell_slot ^= Delayed Fireball:F
+spell_slot ^= Ring of Flames:R
+spell_slot ^= Iron Shot:f
+spell_slot ^= Shatter:g
+spell_slot ^= Fire Storm:h
+spell_slot ^= Fireball:r
+spell_slot ^= Apportation:t
+spell_slot ^= Regeneration:R
+spell_slot ^= Swiftness:S
+
+item_slot ^= staff of earth:+a
+item_slot ^= staff of fire:a+b
+item_slot ^= staff of energy:a+b
+item_slot ^= staff of wizardry:a+b
+
+ability_slot ^= Fly:+g
+ability_slot ^= Stop Flying:+h
+ability_slot ^= Release Delayed Fireball:+f
+
+runrest_stop_message += god:wrath finds you
+runrest_stop_message += Your transformation is almost over
+runrest_stop_message += You are starting to lose your buoyancy
+runrest_stop_message += scroll of identify
+runrest_stop_message += Your hound disappears in a puff of smoke!
+
+tile_skip_title = true
+tile_show_demon_tier = true
+tile_layout_priority = minimap, inventory, gold_turn, spell, memorisation, skill, command, monster
+
+travel_delay = 20
+explore_delay = -1
+
+flash_screen_message += you feel better
+flash_screen_message += You feel your power returning.
+
+#####################################
+# enum values :/
+: ATT_FRIENDLY = 4
+: ATT_NEUTRAL = 1
+: ATT_HOSTILE = 0
+: LOS = 7
+: if you.race() == "Barachi" then
+:   LOS = 8
+: end
+
+#####################################
+
+{
+
+-- just a few outs for nondamaging things
+-- proper threat assessment is a topic for a whole bot
+function is_threatening(m)
+  if m then
+     if m:attitude() > ATT_NEUTRAL then
+       return false
+     end
+     if m:is_firewood() then
+       if not string.find(m:name(), "ballistomycete") then
+         return false
+       end
+     end
+     if m:name() == "butterfly" then
+       return false
+     end
+ 
+  return true
+  end
+end
+
+function check_los()
+	local safe_los = true
+  for i = -LOS,LOS do
+    for j = -LOS,LOS do
+      m = monster.get_monster_at(i,j)
+      if m and is_threatening(m) then
+        safe_los = false
+      end
+    end
+  end
+  return safe_los
+end
+
+function inventory()
+  return iter.invent_iterator:new(items.inventory())
+end
+
+
+local auto_channel = false
+
+function ready()
+  -- Set autobutcher to always have one chunk in inventory
+  crawl.setopt("auto_butcher = true")
+  for it in inventory() do
+    if string.find(it.name(), "chunk") then
+      if you.gourmand() then
+        crawl.setopt("auto_butcher = very full")
+      else
+        crawl.setopt("auto_butcher = hungry")
+      end
+    end
+  end
+
+  --code for auto-channelling until full
+	if auto_channel then
+		local safe_los = check_los()
+		local weap = items.equipped_at("Weapon")
+		local is_wielding_energy_staff = false
+		if weap then
+			is_wielding_energy_staff = weap.name():find("staff of energy")
+		end
+		
+		local safe_player_square = view.is_safe_square(0,0) and view.cloud_at(0,0) == nil
+		local mp, mmp = you.mp()
+		if mp < mmp and safe_los and safe_player_square and is_wielding_energy_staff then
+			crawl.process_keys("v")
+	    crawl.flush_input()
+	    crawl.more_autoclear(true)
+		else
+			auto_channel = false
+		end
+	end
+end
+
+-- macro a key to ===launch_auto_channel to evoke staff of energy until full or a monster comes
+function launch_auto_channel()
+  auto_channel = true
+end
+}
